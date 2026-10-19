@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { upload } from '@vercel/blob/client';
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -21,9 +22,9 @@ export default function Home() {
       return;
     }
 
-    // 150MB limit
-    if (selected.size > 150 * 1024 * 1024) {
-      setError('File size 150MB se kam hona chahiye.');
+    // 200MB limit
+    if (selected.size > 200 * 1024 * 1024) {
+      setError('File size 200MB se kam hona chahiye.');
       setFile(null);
       return;
     }
@@ -43,8 +44,8 @@ export default function Home() {
       return;
     }
 
-    if (dropped.size > 150 * 1024 * 1024) {
-      setError('File size 150MB se kam hona chahiye.');
+    if (dropped.size > 200 * 1024 * 1024) {
+      setError('File size 200MB se kam hona chahiye.');
       return;
     }
 
@@ -61,30 +62,21 @@ export default function Home() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      // Simulate progress for better UX (real progress needs more complex setup)
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => Math.min(prev + 8, 90));
-      }, 200);
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
+      // Client-side direct upload to Vercel Blob (supports large files)
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: (event) => {
+          if (event.percentage) {
+            setProgress(Math.round(event.percentage));
+          }
+        },
       });
 
-      clearInterval(progressInterval);
       setProgress(100);
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Upload failed');
-      }
-
-      setDownloadUrl(data.url);
+      setDownloadUrl(blob.url);
     } catch (err: any) {
+      console.error(err);
       setError(err.message || 'Kuch galat ho gaya. Dobara try karo.');
     } finally {
       setUploading(false);
@@ -140,7 +132,7 @@ export default function Home() {
                 <div style={styles.dropIcon}>⬆️</div>
                 <p style={styles.dropText}>APK file yahan drop karo</p>
                 <p style={styles.dropHint}>ya click karke select karo</p>
-                <p style={styles.dropLimit}>Max 150MB • Sirf .apk</p>
+                <p style={styles.dropLimit}>Max 200MB • Sirf .apk</p>
               </label>
             ) : (
               <div style={styles.fileInfo}>

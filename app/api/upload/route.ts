@@ -1,57 +1,37 @@
-import { put } from '@vercel/blob';
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
-import { nanoid } from 'nanoid';
 
-export const runtime = 'edge';
+export async function POST(request: Request): Promise<NextResponse> {
+  const body = (await request.json()) as HandleUploadBody;
 
-export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    // Validate extension
-    if (!file.name.toLowerCase().endsWith('.apk')) {
-      return NextResponse.json(
-        { error: 'Only .apk files are allowed' },
-        { status: 400 }
-      );
-    }
-
-    // Size limit 150MB
-    if (file.size > 150 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: 'File too large. Max 150MB' },
-        { status: 400 }
-      );
-    }
-
-    // Generate unique filename
-    const id = nanoid(12);
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const pathname = `apks/${id}-${safeName}`;
-
-    // Upload to Vercel Blob
-    const blob = await put(pathname, file, {
-      access: 'public',
-      contentType: 'application/vnd.android.package-archive',
-      addRandomSuffix: false,
+    const jsonResponse = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname) => {
+        // Restrict to APK files only + size limit
+        return {
+          allowedContentTypes: [
+            'application/vnd.android.package-archive',
+            'application/octet-stream', // some browsers send this for .apk
+          ],
+          maximumSizeInBytes: 200 * 1024 * 1024, // 200 MB
+          addRandomSuffix: true,
+          tokenPayload: JSON.stringify({ type: 'apk' }),
+        };
+      },
+      onUploadCompleted: async ({ blob }) => {
+        // Optional: you can log or store the URL somewhere
+        console.log('APK uploaded:', blob.url);
+      },
     });
 
-    return NextResponse.json({
-      url: blob.url,
-      pathname: blob.pathname,
-      size: file.size,
-      name: file.name,
-    });
+    return NextResponse.json(jsonResponse);
   } catch (error: any) {
-    console.error('Upload error:', error);
+    console.error('Upload token error:', error);
     return NextResponse.json(
-      { error: error.message || 'Upload failed. Make sure BLOB_READ_WRITE_TOKEN is set.' },
-      { status: 500 }
+      { error: error.message || 'Failed to generate upload token' },
+      { status: 400 }
     );
   }
 }

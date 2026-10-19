@@ -7,58 +7,52 @@ Upload any APK → Get a public download link → Share with anyone.
 ## Features
 
 - Drag & drop or click to upload APK
-- Max 150MB support
+- Supports large files (up to 200MB+)
 - Instant public download link (Vercel Blob)
+- Real upload progress
 - No login required
 - Clean dark UI
 - Mobile friendly
 
-## Deploy on Vercel (Recommended)
+## Deploy on Vercel
 
-1. Fork / clone this repo
-2. Go to [vercel.com](https://vercel.com) → New Project → Import this repo
-3. **Important**: Add Environment Variable
+1. Import this repo on [vercel.com](https://vercel.com)
+2. **Important**: Create a **Blob** store
 
-   - Name: `BLOB_READ_WRITE_TOKEN`
-   - Value: Create one from Vercel Dashboard → Storage → Create Blob Store → Connect to project → it will give you the token
+   - Go to **Storage** tab → Create → **Blob**
+   - Connect the store to your project
+   - This automatically adds `BLOB_READ_WRITE_TOKEN`
 
-   Or go to: Project Settings → Environment Variables → Add `BLOB_READ_WRITE_TOKEN`
-
-4. Deploy!
+3. Deploy!
 
 ### How to get BLOB_READ_WRITE_TOKEN
 
-1. Vercel Dashboard → Storage tab → Create Database / Blob
-2. Choose **Blob**
-3. Create store → Connect it to your project
-4. It automatically adds `BLOB_READ_WRITE_TOKEN` to the project
+1. Vercel Dashboard → **Storage** → Create Database/Blob
+2. Choose **Blob** → Create store
+3. Connect it to your project
+4. Token is added automatically
 
 ## Local Development
 
 ```bash
 npm install
-
-# Create .env.local and add:
-# BLOB_READ_WRITE_TOKEN=your_token_here
-
+vercel env pull   # pulls BLOB_READ_WRITE_TOKEN
 npm run dev
 ```
 
-Open http://localhost:3000
-
 ## How it works
 
-1. User selects an APK file
-2. File is uploaded to Vercel Blob (public)
-3. A permanent public URL is generated
-4. Anyone with the link can download the APK directly
+Uses **client-side upload** so large APKs (95MB+) work without hitting Vercel's 4.5MB body limit.
+
+1. Browser requests a short-lived upload token from `/api/upload`
+2. File is uploaded **directly** from browser → Vercel Blob
+3. You get a permanent public URL to share
 
 ## Tech Stack
 
 - Next.js 14 (App Router)
-- Vercel Blob for storage
+- Vercel Blob (client uploads)
 - TypeScript
-- Edge Runtime for fast uploads
 
 ---
 
