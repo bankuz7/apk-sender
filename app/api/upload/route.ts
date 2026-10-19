@@ -8,20 +8,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (pathname) => {
-        // Restrict to APK files only + size limit
+      onBeforeGenerateToken: async () => {
         return {
           allowedContentTypes: [
             'application/vnd.android.package-archive',
-            'application/octet-stream', // some browsers send this for .apk
+            'application/octet-stream',
           ],
           maximumSizeInBytes: 200 * 1024 * 1024, // 200 MB
           addRandomSuffix: true,
-          tokenPayload: JSON.stringify({ type: 'apk' }),
         };
       },
       onUploadCompleted: async ({ blob }) => {
-        // Optional: you can log or store the URL somewhere
         console.log('APK uploaded:', blob.url);
       },
     });

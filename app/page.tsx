@@ -7,6 +7,8 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [uploadedMB, setUploadedMB] = useState(0);
+  const [totalMB, setTotalMB] = useState(0);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -22,7 +24,6 @@ export default function Home() {
       return;
     }
 
-    // 200MB limit
     if (selected.size > 200 * 1024 * 1024) {
       setError('File size 200MB se kam hona chahiye.');
       setFile(null);
@@ -59,16 +60,23 @@ export default function Home() {
 
     setUploading(true);
     setProgress(0);
+    setUploadedMB(0);
+    setTotalMB(+(file.size / (1024 * 1024)).toFixed(1));
     setError(null);
 
     try {
-      // Client-side direct upload to Vercel Blob (supports large files)
+      // Client-side direct upload + multipart for speed on large files
       const blob = await upload(file.name, file, {
         access: 'public',
         handleUploadUrl: '/api/upload',
+        multipart: true, // 🚀 parallel chunks = faster + more reliable
+        contentType: 'application/vnd.android.package-archive',
         onUploadProgress: (event) => {
-          if (event.percentage) {
+          if (event.percentage !== undefined) {
             setProgress(Math.round(event.percentage));
+          }
+          if (event.loaded !== undefined) {
+            setUploadedMB(+(event.loaded / (1024 * 1024)).toFixed(1));
           }
         },
       });
@@ -95,6 +103,8 @@ export default function Home() {
     setDownloadUrl(null);
     setError(null);
     setProgress(0);
+    setUploadedMB(0);
+    setTotalMB(0);
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -167,7 +177,12 @@ export default function Home() {
                     }}
                   />
                 </div>
-                <p style={styles.progressText}>Uploading... {progress}%</p>
+                <p style={styles.progressText}>
+                  Uploading... {progress}% ({uploadedMB} / {totalMB} MB)
+                </p>
+                <p style={styles.progressHint}>
+                  Multipart mode • Parallel chunks for faster upload
+                </p>
               </div>
             )}
           </div>
@@ -359,6 +374,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: 8,
     fontSize: 13,
     color: 'var(--muted)',
+  },
+  progressHint: {
+    textAlign: 'center',
+    marginTop: 4,
+    fontSize: 11,
+    color: 'var(--muted)',
+    opacity: 0.7,
   },
   successIcon: {
     fontSize: 48,
