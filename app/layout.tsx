@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'APK Sender - Share APK Files Easily',
-  description: 'Upload any APK and get a shareable download link. Simple, fast, and free.',
+  title: 'File Sender - Share Any File Easily',
+  description: 'Upload any file — APK, images, videos, documents, archives — and get a shareable download link. Simple, fast, and free.',
 };
 
 export default function RootLayout({

@@ -10,16 +10,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
       onBeforeGenerateToken: async () => {
         return {
-          allowedContentTypes: [
-            'application/vnd.android.package-archive',
-            'application/octet-stream',
-          ],
-          maximumSizeInBytes: 200 * 1024 * 1024, // 200 MB
+          // No allowedContentTypes => any file type is accepted.
+          maximumSizeInBytes: 500 * 1024 * 1024, // 500 MB
           addRandomSuffix: true,
         };
       },
       onUploadCompleted: async ({ blob }) => {
-        console.log('APK uploaded:', blob.url);
+        console.log('File uploaded:', blob.url);
       },
     });
 

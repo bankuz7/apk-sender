@@ -1,13 +1,14 @@
 # APK Sender 📦
 
-Web based APK uploader & sharer.
+Web based file uploader & sharer (works great for APKs).
 
-Upload any APK → Get a public download link → Share with anyone.
+Upload any file type → Get a public download link → Share with anyone.
 
 ## Features
 
-- Drag & drop or click to upload APK
-- Supports large files (up to 200MB+)
+- Upload **any file type** — APK, images, videos, documents, archives
+- Drag & drop or click to upload
+- Supports large files (up to 500MB)
 - Instant public download link (Vercel Blob)
 - Real upload progress
 - No login required
@@ -42,7 +43,7 @@ npm run dev
 
 ## How it works
 
-Uses **client-side upload** so large APKs (95MB+) work without hitting Vercel's 4.5MB body limit.
+Uses **client-side upload** so large files (95MB+) work without hitting Vercel's 4.5MB body limit.
 
 1. Browser requests a short-lived upload token from `/api/upload`
 2. File is uploaded **directly** from browser → Vercel Blob
@@ -56,4 +57,4 @@ Uses **client-side upload** so large APKs (95MB+) work without hitting Vercel's 
 
 ---
 
-Made for easy APK sharing.
+Made for easy file sharing.
