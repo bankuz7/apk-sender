@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { upload } from '@vercel/blob/client';
 
 export default function Home() {
@@ -9,10 +9,21 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [uploadedMB, setUploadedMB] = useState(0);
   const [totalMB, setTotalMB] = useState(0);
+  const [eta, setEta] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const startTimeRef = useRef<number>(0);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -62,49 +73,118 @@ export default function Home() {
     setProgress(0);
     setUploadedMB(0);
     setTotalMB(+(file.size / (1024 * 1024)).toFixed(1));
+    setEta(null);
     setError(null);
+    startTimeRef.current = Date.now();
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
-      // Client-side direct upload + multipart for speed on large files
       const blob = await upload(file.name, file, {
         access: 'public',
         handleUploadUrl: '/api/upload',
-        multipart: true, // 🚀 parallel chunks = faster + more reliable
+        multipart: true,
         contentType: 'application/vnd.android.package-archive',
+        abortSignal: controller.signal,
         onUploadProgress: (event) => {
           if (event.percentage !== undefined) {
             setProgress(Math.round(event.percentage));
           }
           if (event.loaded !== undefined) {
-            setUploadedMB(+(event.loaded / (1024 * 1024)).toFixed(1));
+            const loadedMB = +(event.loaded / (1024 * 1024)).toFixed(1);
+            setUploadedMB(loadedMB);
+
+            // Calculate ETA
+            const elapsed = (Date.now() - startTimeRef.current) / 1000; // seconds
+            if (elapsed > 1 && event.loaded > 0) {
+              const speed = event.loaded / elapsed; // bytes per second
+              const remaining = (file.size - event.loaded) / speed;
+              if (remaining > 60) {
+                setEta(`~${Math.ceil(remaining / 60)} min left`);
+              } else if (remaining > 5) {
+                setEta(`~${Math.ceil(remaining)} sec left`);
+              } else {
+                setEta('Almost done...');
+              }
+            }
           }
         },
       });
 
       setProgress(100);
+      setEta(null);
       setDownloadUrl(blob.url);
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Kuch galat ho gaya. Dobara try karo.');
+      if (err.name === 'AbortError' || controller.signal.aborted) {
+        setError('Upload cancel kar diya gaya.');
+      } else {
+        console.error(err);
+        setError(err.message || 'Kuch galat ho gaya. Dobara try karo.');
+      }
     } finally {
       setUploading(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const cancelUpload = () => {
+    abortControllerRef.current?.abort();
   };
 
   const copyLink = async () => {
     if (!downloadUrl) return;
-    await navigator.clipboard.writeText(downloadUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(downloadUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+      const input = document.createElement('input');
+      input.value = downloadUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const shareLink = async () => {
+    if (!downloadUrl) return;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'APK Download',
+          text: `Yeh APK download karo: ${file?.name || 'App'}`,
+          url: downloadUrl,
+        });
+        setShared(true);
+        setTimeout(() => setShared(false), 2000);
+      } catch (err: any) {
+        // User cancelled share
+        if (err.name !== 'AbortError') {
+          // fallback to copy
+          copyLink();
+        }
+      }
+    } else {
+      // Desktop / no Web Share API
+      copyLink();
+    }
   };
 
   const reset = () => {
+    abortControllerRef.current?.abort();
     setFile(null);
     setDownloadUrl(null);
     setError(null);
     setProgress(0);
     setUploadedMB(0);
     setTotalMB(0);
+    setEta(null);
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -153,9 +233,11 @@ export default function Home() {
                     {(file.size / (1024 * 1024)).toFixed(2)} MB
                   </p>
                 </div>
-                <button onClick={reset} style={styles.removeBtn}>
-                  ✕
-                </button>
+                {!uploading && (
+                  <button onClick={reset} style={styles.removeBtn}>
+                    ✕
+                  </button>
+                )}
               </div>
             )}
 
@@ -178,11 +260,12 @@ export default function Home() {
                   />
                 </div>
                 <p style={styles.progressText}>
-                  Uploading... {progress}% ({uploadedMB} / {totalMB} MB)
+                  {progress}% • {uploadedMB} / {totalMB} MB
                 </p>
-                <p style={styles.progressHint}>
-                  Multipart mode • Parallel chunks for faster upload
-                </p>
+                {eta && <p style={styles.etaText}>{eta}</p>}
+                <button onClick={cancelUpload} style={styles.cancelBtn}>
+                  Cancel Upload
+                </button>
               </div>
             )}
           </div>
@@ -191,7 +274,7 @@ export default function Home() {
             <div style={styles.successIcon}>✅</div>
             <h2 style={styles.successTitle}>Upload Successful!</h2>
             <p style={styles.successText}>
-              Yeh link kisi ko bhi bhejo. Unhe APK download mil jayega.
+              Link copy karke kisi ko bhi bhejo.
             </p>
 
             <div style={styles.linkBox}>
@@ -200,13 +283,20 @@ export default function Home() {
                 value={downloadUrl}
                 readOnly
                 style={styles.linkInput}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
               />
-              <button onClick={copyLink} style={styles.copyBtn}>
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
             </div>
 
             <div style={styles.actions}>
+              <button onClick={copyLink} style={styles.copyBtn}>
+                {copied ? '✓ Copied!' : 'Copy Link'}
+              </button>
+              <button onClick={shareLink} style={styles.shareBtn}>
+                {shared ? '✓ Shared!' : 'Share'}
+              </button>
+            </div>
+
+            <div style={styles.secondaryActions}>
               <a
                 href={downloadUrl}
                 target="_blank"
@@ -225,7 +315,7 @@ export default function Home() {
         <footer style={styles.footer}>
           <p>Free • Fast • No login required</p>
           <p style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
-            Files are stored securely on Vercel Blob
+            Files stored on Vercel Blob (Mumbai)
           </p>
         </footer>
       </div>
@@ -352,7 +442,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 16,
     fontWeight: 600,
     cursor: 'pointer',
-    transition: 'background 0.2s',
   },
   progressContainer: {
     marginTop: 20,
@@ -371,16 +460,28 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   progressText: {
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: 500,
+    color: 'var(--text)',
+  },
+  etaText: {
+    textAlign: 'center',
+    marginTop: 4,
     fontSize: 13,
     color: 'var(--muted)',
   },
-  progressHint: {
-    textAlign: 'center',
-    marginTop: 4,
-    fontSize: 11,
-    color: 'var(--muted)',
-    opacity: 0.7,
+  cancelBtn: {
+    width: '100%',
+    marginTop: 16,
+    padding: '12px',
+    background: 'transparent',
+    border: '1px solid var(--danger)',
+    color: 'var(--danger)',
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
   successIcon: {
     fontSize: 48,
@@ -396,15 +497,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: 'center',
     color: 'var(--muted)',
     fontSize: 14,
-    marginBottom: 24,
-  },
-  linkBox: {
-    display: 'flex',
-    gap: 8,
     marginBottom: 20,
   },
+  linkBox: {
+    marginBottom: 16,
+  },
   linkInput: {
-    flex: 1,
+    width: '100%',
     padding: '12px 14px',
     background: 'var(--bg)',
     border: '1px solid var(--border)',
@@ -413,17 +512,34 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 13,
     outline: 'none',
   },
+  actions: {
+    display: 'flex',
+    gap: 10,
+    marginBottom: 12,
+  },
   copyBtn: {
-    padding: '12px 18px',
+    flex: 1,
+    padding: '13px',
     background: 'var(--primary)',
     color: 'white',
     border: 'none',
     borderRadius: 8,
     fontWeight: 600,
+    fontSize: 15,
     cursor: 'pointer',
-    whiteSpace: 'nowrap',
   },
-  actions: {
+  shareBtn: {
+    flex: 1,
+    padding: '13px',
+    background: 'rgba(99, 102, 241, 0.2)',
+    color: 'var(--primary)',
+    border: '1px solid var(--primary)',
+    borderRadius: 8,
+    fontWeight: 600,
+    fontSize: 15,
+    cursor: 'pointer',
+  },
+  secondaryActions: {
     display: 'flex',
     gap: 10,
   },
