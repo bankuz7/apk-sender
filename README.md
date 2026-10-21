@@ -4,6 +4,17 @@ Web based file uploader & sharer (works great for APKs).
 
 Upload any file type → Get a public download link → Share with anyone.
 
+## CLI version
+
+Also available: **[cli/](cli/)** — upload from the terminal, no deployment needed:
+
+```bash
+cd cli && npm install && npm link
+apk-sender build/app-release.apk --copy
+```
+
+Requires the same `BLOB_READ_WRITE_TOKEN` as the web app.
+
 ## Features
 
 - Upload **any file type** — APK, images, videos, documents, archives

@@ -1,0 +1,20 @@
+{
+  "name": "apk-sender-cli",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI companion for apk-sender — upload any file to Vercel Blob and get a public shareable link",
+  "main": "apk-sender.mjs",
+  "bin": {
+    "apk-sender": "./apk-sender.mjs"
+  },
+  "scripts": {
+    "install:local": "npm link"
+  },
+  "dependencies": {
+    "@vercel/blob": "^0.27.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
